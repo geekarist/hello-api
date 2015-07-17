@@ -13,7 +13,7 @@ app.use(passport.session());
 
 passport.use(
     new LocalStrategy(
-        {session: false},
+        {session: true},
         function (username, password, done) {
             for (var i = 0; i < users.length; i++) {
                 if (users[i].login === username) {
@@ -27,6 +27,16 @@ passport.use(
             return done(null, false);
         }));
 
+passport.serializeUser(function (user, done) {
+    done(null, user.login);
+});
+
+passport.deserializeUser(function (login, done) {
+    done(null, users.filter(function (item) {
+        return item.login === login;
+    }));
+});
+
 app.get('/', function (req, res) {
     res.send('Hello!');
 });
@@ -34,7 +44,7 @@ app.get('/', function (req, res) {
 app.get('/sayhellotome',
     passport.authenticate('local', {failureRedirect: '/'}),
     function (req, res) {
-        res.send('Hello, %s!', req.user);
+        res.send('Hello, ' + req.user.login + '!');
     });
 
 var server = app.listen(3000, function () {
