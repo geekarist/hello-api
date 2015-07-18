@@ -1,7 +1,7 @@
 var express = require('express');
 var app = express();
 var passport = require('passport');
-var LocalStrategy = require('passport-local').Strategy;
+var GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
 var expressSession = require('express-session');
 
 app.use(expressSession({secret: 'keyboard cat', resave: true, saveUninitialized: true}));
@@ -9,46 +9,25 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // User repository
-var users = [
-    {username: 'cpele', password: 'secret'},
-    {username: 'otheruser', password: 'secret2'}
-];
-
-// Find user by name and launch done callback
-var findUserByName = function (username, password, done) {
-    console.log('Checking %s: %s', username, password);
-    for (var i = 0; i < users.length; i++) {
-        if (users[i].username === username) {
-            if (password === users[i].password) {
-                console.log('Password Ok for %s: %s', username, password);
-                return done(null, users[i]);
-            } else {
-                console.log('Wrong password for %s: %s', username, password);
-                return done(null, false);
-            }
-        }
-    }
-    console.log('User not found: %s', JSON.stringify(username));
-    return done(null, false);
-};
+var users = ['cpele', 'otheruser'];
 
 // Use local strategy to authenticate user by name
-passport.use(new LocalStrategy(findUserByName));
+passport.use(new GoogleStrategy({
+    clientID: '381577767512-5h4kaf2umdc3i9818ventljihlhmpavo.apps.googleusercontent.com',
+    clientSecret: 'bg9RPRO8mvleUTxbl8nPk-XS',
+    callbackURL: 'http://localhost:3000/auth/google/callback'
+}, function (accessToken, refreshToken, profile, done) {
+   return done(null, profile);
+}));
 
 // Serialize user into session when authenticating
 passport.serializeUser(function (user, done) {
-    console.log('Serializing %s', JSON.stringify(user));
-    done(null, user.username);
+    done(null, user);
 });
 
 // Deserialize user from session
-passport.deserializeUser(function (username, done) {
-    var matchingUsers = users.filter(function (item) {
-        return item.username === username;
-    });
-    var u = matchingUsers[0];
-    console.log('Deserializing %s', JSON.stringify(u));
-    done(null, u);
+passport.deserializeUser(function (obj, done) {
+    done(null, obj);
 });
 
 // Check if user is authenticated or send Unauthorized status
@@ -61,15 +40,21 @@ function ensureAuthenticated(req, res, next) {
 
 // Say hello to user if she is authenticated
 app.get('/', ensureAuthenticated, function (req, res) {
-    res.send('Hello ' + req.user.username + '!');
+    res.send('Hello ' + req.user.id + '!');
 });
 
-// User authentication endpoint
 app.get('/login',
-    passport.authenticate('local', {failureRedirect: '/'}),
-    function (req, res) {
-        res.send('Ok ' + req.user.username + ', you\'re in!');
-    });
+    passport.authenticate('google', {scope: ['https://www.googleapis.com/auth/plus.login']}),
+    function (req, res) {});
+
+app.get('/unauthorized', function (req, res) {res.sendStatus(401)});
+
+// User authentication endpoint
+app.get('/auth/google/callback',
+    passport.authenticate('google', {
+        failureRedirect: '/unauthorized',
+        successRedirect: '/'
+    }));
 
 // User logout endpoint
 app.get('/logout', function (req, res) {
